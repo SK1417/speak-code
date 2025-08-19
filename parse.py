@@ -1,6 +1,7 @@
 import ast 
 import os
 import networkx as nx
+import matplotlib.pyplot as plt
 
 def get_source_code(node, full_code):
     startline = node.lineno - 1
@@ -99,43 +100,46 @@ class FileVisitor(ast.NodeVisitor):
         self.generic_visit(node)
 
     def visit_Call(self, node):
-        print(f"DEBUG: Found ast.Call node at line {node.lineno}")
-        print(f"DEBUG: node.func type: {type(node.func).__name__}")
         if isinstance(node.func, ast.Name):
-            self.calls.append(node.func.id)
+            self._add_tag(node.func.id, 'function_call', node)
         elif isinstance(node.func, ast.Attribute):
-            self.calls.append(node.func.attr)
+            self._add_tag(node.func.attr, 'method_call', node)
         self.generic_visit(node)
 
 
-def build_dependency_graph(chunks):
+def build_dependency_graph(all_tags):
     G = nx.DiGraph()
 
-    func_locations = {chunk['name']: chunk['file_path'] for chunk in chunks if chunk['type'] in ['FunctionDef', 'AsyncFunctionDef']}
+    all_definitions_map = {}
+    for tag in all_tags:
+        if 'definition' in tag['type'] or 'import' in tag['type']:
+            name = tag['value'] if tag['value'] else tag['name']
+            all_definitions_map[name] = tag['file_path']
+    
+    unique_files = set(tag['file_path'] for tag in all_tags)
+    for file in unique_files:
+        G.add_node(file)
 
-    for chunk in chunks:
-        if chunk['type'] not in ['FunctionDef', 'AsyncFunctionDef']:
-            continue
+    for tag in all_tags:
+        if 'call' in tag['type'] or 'import' in tag['type']:
+            source_file = tag['file_path']
+            referenced_name = tag['name']
 
-        source_node_id = f'{chunk['file_path']}::{chunk['name']}'
-        G.add_node(source_node_id)
+            if 'import' in tag['type'] and tag['value']:
+                referenced_name = tag['value']
+            
+            if referenced_name in all_definitions_map:
+                target_file = all_definitions_map[referenced_name]
 
-        try:
-            tree = ast.parse(chunk['source_code'])
-            visitor = FileVisitor()
-            visitor.visit(tree)
-
-            for called_function in visitor.calls:
-                if called_function in func_locations:
-                    target_file_path = func_locations[called_function]
-                    target_node_id = f'{target_file_path}::{called_function}'
-                    G.add_edge(source_node_id, target_node_id)
-
-        except Exception as e:
-            print(e)
+                if source_file != target_file:
+                    G.add_edge(source_file, target_file)
     
     return G
 
-chunks = parse_codebase('test_repo_for_agent/')
-G = build_dependency_graph(chunks)
-print(G)
+if __name__ == '__main__':
+    all_tags, file_ast = parse_codebase('test_repo_for_agent/')
+    G = build_dependency_graph(all_tags)
+    print(G)
+    
+    nx.draw(G, with_labels=True, node_color='lightblue', arrows=True)
+    plt.show()
