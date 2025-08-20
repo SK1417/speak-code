@@ -1,15 +1,16 @@
 import ast 
 import os
+import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
+from sentence_transformers import SentenceTransformer
+from tqdm import tqdm
 
-def get_source_code(node, full_code):
-    startline = node.lineno - 1
-    endline = node.end_lineno if hasattr(node, 'end_lineno') else startline
-    return ''.join(full_code[startline: endline])
+from functools import lru_cache
+
+
 
 def parse_codebase(root_dir):
-
     all_tags = []
     file_asts = {}
     for root, _, files in os.walk(root_dir):
@@ -35,14 +36,20 @@ class FileVisitor(ast.NodeVisitor):
         self.file_path = file_path
         self.full_code_lines = full_code_lines
         self.tags = []
+
         self.scope_stack = [('module', 'Module')]
+
+    def get_source_code(self, node):
+        startline = node.lineno - 1
+        endline = getattr(node, "end_lineno", node.lineno)
+        return ''.join(self.full_code_lines[startline:endline])
 
     def _add_tag(self, name, tag_type, node, value=None):
         self.tags.append({
             'file_path': self.file_path,
             'name': name,
             'type': tag_type,
-            'line': node.lineno, 
+            'lines': self.get_source_code(node), 
             'scope': self.scope_stack,
             'value': value
         })
@@ -136,10 +143,72 @@ def build_dependency_graph(all_tags):
     
     return G
 
+@lru_cache(maxsize=4096)
+def embed_text(text, model):
+    return model.encode(text, normalize_embeddings=True)
+
+def weights_for_query(query, all_tags, model):
+
+    q_emb = embed_text(query, model)
+    weights = {}
+    tag_weights = {}
+    tag_counts = {}
+
+    for tag in tqdm(all_tags):
+        key = tag['file_path']
+        if key not in weights:
+            weights[key] = 0.0
+            tag_counts[key] = 0
+    
+        text = f"File {tag['file_path']} contains {tag['type']} named {tag['name']} with code: {tag['lines']}"
+        sim = np.dot(q_emb, embed_text(text, model))
+        tag_weights[tag['name']] = sim
+        weights[key] += sim
+        tag_counts[key] += 1
+    
+    for f in weights:
+        if tag_counts[f] > 0:
+            weights[f] /= tag_counts[f]
+
+    return weights, tag_weights
+
+
+def rank_files(graph, weights):
+
+    if weights:
+        total = sum(weights.values())
+        if total != 0:
+            weights = {k: v/total for k, v in weights.items()}
+        else:
+            weights = None
+
+    pagerank_scores = nx.pagerank(graph, personalization=weights)
+
+    ranked_files = sorted(pagerank_scores.items(), key=lambda item: item[1], reverse=True)
+    return ranked_files
+
 if __name__ == '__main__':
     all_tags, file_ast = parse_codebase('test_repo_for_agent/')
     G = build_dependency_graph(all_tags)
-    print(G)
+    print('[LOG]DiGraph created...')
+
+    # nx.draw(G, with_labels=True, node_color='lightblue', arrows=True)
+    # plt.show()
+
+    query='I want to add a new database connection'
+
+    print('[LOG] loading model...')
+    model = SentenceTransformer("nomic-ai/nomic-embed-text-v1", trust_remote_code=True)
+    print('[LOG] loaded model...')
+    weights, tag_weights = weights_for_query(query, all_tags, model)
+    print('[LOG] created weights...')
+
+    sorted_weights = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:5]
+    sorted_tag_weights = sorted(tag_weights.items(), key=lambda item: item[1], reverse=True)[:5]
     
-    nx.draw(G, with_labels=True, node_color='lightblue', arrows=True)
-    plt.show()
+
+    print(sorted_weights)
+    print('---------------------------------------')
+    print(sorted_tag_weights)
+    ranked_files = rank_files(G, weights)
+    # print(ranked_files)
