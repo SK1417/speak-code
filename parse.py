@@ -5,12 +5,19 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
+import json
 
 from functools import lru_cache
 
 
 
-def parse_codebase(root_dir):
+def parse_codebase(root_dir=None):
+
+    if not root_dir:
+        root_dir = os.getcwd()
+
+    print(f'[LOG] root dir: {root_dir}')
+
     all_tags = []
     file_asts = {}
     for root, _, files in os.walk(root_dir):
@@ -162,7 +169,7 @@ def weights_for_query(query, all_tags, model):
     
         text = f"File {tag['file_path']} contains {tag['type']} named {tag['name']} with code: {tag['lines']}"
         sim = np.dot(q_emb, embed_text(text, model))
-        tag_weights[tag['name']] = sim
+        tag_weights[tag['name']] = (sim, text)
         weights[key] += sim
         tag_counts[key] += 1
     
@@ -170,25 +177,13 @@ def weights_for_query(query, all_tags, model):
         if tag_counts[f] > 0:
             weights[f] /= tag_counts[f]
 
-    return weights, tag_weights
+    ranked_files = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:5]
+    ranked_tags = sorted(tag_weights.items(), key=lambda item: item[1][0], reverse=True)[:5]
 
-
-def rank_files(graph, weights):
-
-    if weights:
-        total = sum(weights.values())
-        if total != 0:
-            weights = {k: v/total for k, v in weights.items()}
-        else:
-            weights = None
-
-    pagerank_scores = nx.pagerank(graph, personalization=weights)
-
-    ranked_files = sorted(pagerank_scores.items(), key=lambda item: item[1], reverse=True)
-    return ranked_files
+    return ranked_files, ranked_tags
 
 if __name__ == '__main__':
-    all_tags, file_ast = parse_codebase('test_repo_for_agent/')
+    all_tags, file_ast = parse_codebase()
     G = build_dependency_graph(all_tags)
     print('[LOG]DiGraph created...')
 
@@ -200,15 +195,11 @@ if __name__ == '__main__':
     print('[LOG] loading model...')
     model = SentenceTransformer("nomic-ai/nomic-embed-text-v1", trust_remote_code=True)
     print('[LOG] loaded model...')
-    weights, tag_weights = weights_for_query(query, all_tags, model)
+    ranked_files, ranked_tags = weights_for_query(query, all_tags, model)
     print('[LOG] created weights...')
-
-    sorted_weights = sorted(weights.items(), key=lambda item: item[1], reverse=True)[:5]
-    sorted_tag_weights = sorted(tag_weights.items(), key=lambda item: item[1], reverse=True)[:5]
+    print(ranked_files)
+    print('---------------------------------------')
+    print(ranked_tags)
+    
     
 
-    print(sorted_weights)
-    print('---------------------------------------')
-    print(sorted_tag_weights)
-    ranked_files = rank_files(G, weights)
-    # print(ranked_files)
