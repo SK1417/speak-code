@@ -8,39 +8,20 @@ from prompts import KEY_FINDINGS_PROMPT
 
 def initialize_memory():
     return {
-        "conversation_summary": "",
+        "conversation_history": [],
         "key_findings": [],
-        "files_explored": set(),
-        "current_context": "", 
-        "user_preferences": {}
     }
 
 def update_memory(state, llm, explicit_update=None):
 
     memory = state.get('memory', initialize_memory().copy())
 
-    if isinstance(memory.get("files_explored"), list):
-        memory["files_explored"] = set(memory["files_explored"])
-
     if explicit_update:
-        if "context" in explicit_update:
-            memory['current_context'] = explicit_update['context']
         if 'findings' in explicit_update:
             memory['key_findings'].extend(explicit_update['findings'])
-        if 'files' in explicit_update:
-            memory['files_explored'].update(explicit_update['files'])
-        if 'preferences' in explicit_update:
-            memory['user_preferences'].update(explicit_update['preferences'])
     
-    recent_msgs = state['messages'][-5:]
-
-    for msg in recent_msgs:
-        if isinstance(msg, ToolMessage) and 'file' in msg.content.lower():
-            content = msg.content
-            file_pattern = r'[a-zA-Z0-9_/.-]+\.py'
-            files = re.findall(file_pattern, content)
-            for file in files:
-                memory['files_explored'].add(file)
+    recent_msgs = state['messages'][-10:]
+    memory['conversation_history'] = [x.content for x in recent_msgs]
     
     ai_messages = [msg.content for msg in recent_msgs if isinstance(msg, AIMessage)]
     key_findings_prompt = KEY_FINDINGS_PROMPT.format(ai_messages=" | ".join(ai_messages))
@@ -51,9 +32,6 @@ def update_memory(state, llm, explicit_update=None):
         memory['key_findings'].append(formatted_finding)
     memory['key_findings'] = memory['key_findings'][-10:]
 
-    if isinstance(memory["files_explored"], set):
-        memory["files_explored"] = list(memory["files_explored"])
-
     return memory
 
 def get_memory_context(memory):
@@ -61,9 +39,8 @@ def get_memory_context(memory):
         return ''
     
     context = []
-
-    if memory.get('files_explored'):
-        context.append(f"Previously explored files: {', '.join(list(memory['files_explored'])[:5])}")
+    
+    context.append('History: ' + '\n'.join(memory['conversation_history']))
     
     if memory.get('key_findings'):
         recent_findings = memory['key_findings']
@@ -84,7 +61,6 @@ def update_memory_node(state, llm):
     ("system", """You are a memory extraction assistant. 
     Analyze the recent conversation and extract structured updates.
 
-    - If the user describes what they are working on or debugging, set 'context'.
     - If the user explicitly asks you to remember something, add it to 'findings' as type 'user_note'.
     - If the assistant states conclusions, issues, or results, add them to 'findings' as type 'ai_conclusion'.
     Return ONLY valid JSON.

@@ -7,7 +7,7 @@ KEY_FINDINGS_PROMPT = '''
 
 REFINE_QUERY_PROMPT = """
 You are a query analysis expert. Your job is to take a user's potentially vague query about a codebase and rephrase it into a clear, actionable instruction for another AI agent. The goal is to maximize the effectiveness of its code-searching tools 
-while not taking up too much space.
+while not taking up too much space. REMEMBER that not every user input is a query, it can be a greeting or small conversation too. In which case, no need to do anything.
 
 **Your Task:**
 Analyze the user's query and the conversation history. Rewrite the query to be a concise, self-contained question that is ideal for a semantic search.

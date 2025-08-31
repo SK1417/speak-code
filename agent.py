@@ -169,15 +169,16 @@ Your primary task is to choose the correct tool for the job. Follow these heuris
     * The query you pass to this tool should be a clear, self-contained question.
 
 ## Memory Usage:
-You have a memory of previously explored files and key findings.
+You have a memory of previous messages and key findings.
 * **memory_context**: 
     {memory_context}
-* **Instruction**: Before reading a file or searching for code, consult the memory. If you have already analyzed a relevant file, use that knowledge instead of calling a tool again to save time and effort.
 
 ## Final Output:
 * Never just dump the raw output of a tool.
 * Synthesize the information you've gathered into a clear, concise, and helpful answer in natural language.
 * If you used tools, briefly mention what you did to find the answer (e.g., "I searched for relevant code concerning 'authentication' and found the following...").
+* ONLY use tools IF NEEDED. Else just provide an answer on your own, like for greetings. 
+* If there's any question that's on a different topic, just say you can't answer. Stick to the script.
 
 Begin!"""),
     ("placeholder", "{messages}")
@@ -231,7 +232,6 @@ def call_tools(state):
 
 def finetune_query_with_context(state):
     last_msg = next((msg for msg in reversed(state['messages']) if isinstance(msg, HumanMessage)), None)
-    print(colored(f'[refine_query_last_msg]: {last_msg}', 'light_blue'))
     response = ''
     if isinstance(last_msg, HumanMessage):
         response = llm.invoke(REFINE_QUERY_PROMPT.format(user_query=last_msg))
