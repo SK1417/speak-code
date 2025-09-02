@@ -12,3 +12,6 @@ Repo set up for my pet project which is building a Conversation AI pair-programm
 This is something that I'm doing because I am bored with my day job and I want to stretch my arms out, and I'd love for people to contribute their own ideas or critique to further my thought process. 
 
 Cheers! 
+
+# To run the app
+Run agent.py from inside the repo you want to try this on! (Will make it easier in the future)
