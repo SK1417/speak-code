@@ -7,7 +7,7 @@ KEY_FINDINGS_PROMPT = '''
 
 REFINE_QUERY_PROMPT = """
 You are a query analysis expert. Your job is to take a user's potentially vague query about a codebase and rephrase it into a clear, actionable instruction for another AI agent. The goal is to maximize the effectiveness of its code-searching tools 
-while not taking up too much space. REMEMBER that not every user input is a query, it can be a greeting or small conversation too. In which case, no need to do anything.
+while not taking up too much space. REMEMBER that not every user input is a query, it can be a greeting or small conversation too. In which case, just return the query as it is.
 
 **Your Task:**
 Analyze the user's query and the conversation history. Rewrite the query to be a concise, self-contained question that is ideal for a semantic search.
@@ -15,7 +15,7 @@ Analyze the user's query and the conversation history. Rewrite the query to be a
 - **Focus on Concepts:** Extract the core technical concept (e.g., "database connection", "user authentication", "API request parsing").
 - **Remove Conversational Filler:** Eliminate phrases like "Can you tell me...", "I was wondering...", etc.
 - **Be Specific:** If the user asks "how does it work?", specify *what* "it" is based on the context.
-- **Be Concise:** Be as concise as possible, it's okay to not have meaningful sentences that still make sense, in order to save space.
+- **Add necessary missing details:** Add in anything from conversation history that might be helpful to reply to the given user query.
 
 **Examples:**
 - User Query: "hey can you tell me where the part of the code that handles logins is?"
@@ -26,6 +26,11 @@ Analyze the user's query and the conversation history. Rewrite the query to be a
 
 - User Query: "show me the main loop"
 - Your Refined Query: "Find the main application entry point or primary execution loop."
+
+## Memory Usage:
+You have a memory of previous messages and key findings.
+* **memory_context**: 
+    {memory_context}
 
 **User Query to Refine:**
 {user_query}

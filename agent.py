@@ -233,12 +233,20 @@ def call_tools(state):
 def finetune_query_with_context(state):
     last_msg = next((msg for msg in reversed(state['messages']) if isinstance(msg, HumanMessage)), None)
     response = ''
+
+    memory = state.get('memory', initialize_memory().copy())
+    memory_context = get_memory_context(memory)
+
     if isinstance(last_msg, HumanMessage):
-        response = llm.invoke(REFINE_QUERY_PROMPT.format(user_query=last_msg))
+        response = llm.invoke(REFINE_QUERY_PROMPT.format(user_query=last_msg, memory_context=memory_context))
 
     print(colored(f'[refine_query]: {response}', 'light_blue'))
     return {"messages": response}
 
+def plan_response(state):
+    last_msg = state['messages'][-1]
+
+    ### TODO query decomposition, planning and storing plan in memory somewhere until loop end?
 
 def should_continue(state):
     messages = state["messages"]
