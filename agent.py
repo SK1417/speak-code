@@ -16,7 +16,7 @@ if "GOOGLE_API_KEY" not in os.environ:
     os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
 
 print(colored("[LOG] Loading embedding model...", 'green'))
-embed_model = SentenceTransformer("nomic-ai/nomic-embed-text-v1", trust_remote_code=True)
+embed_model = SentenceTransformer("jinaai/jina-code-embeddings-1.5b", trust_remote_code=True)
 print(colored("[LOG] Model loaded successfully.", 'green'))
 
 def find_relevant_files(query: str) -> str:

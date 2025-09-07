@@ -154,7 +154,7 @@ def build_dependency_graph(all_tags):
 def embed_text(text, model):
     return model.encode(text, normalize_embeddings=True)
 
-def weights_for_query(query, all_tags, model):
+def weights_for_query(query, all_tags, model: SentenceTransformer):
 
     q_emb = embed_text(query, model)
     weights = {}
@@ -168,7 +168,7 @@ def weights_for_query(query, all_tags, model):
             tag_counts[key] = 0
     
         text = f"File {tag['file_path']} contains {tag['type']} named {tag['name']} with code: {tag['lines']}"
-        sim = np.dot(q_emb, embed_text(text, model))
+        sim = model.similarity(q_emb, embed_text(text, model))  
         tag_weights[tag['name']] = (sim, text)
         weights[key] += sim
         tag_counts[key] += 1
